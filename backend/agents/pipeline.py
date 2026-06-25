@@ -30,7 +30,7 @@ async def _run(user_message: str) -> str:
     inv = investigador_factory.create(hermes_mcp.get())
     research_response = await inv.arun(user_message)
     raw_data = research_response.content or ""
-    logger.debug("Investigador raw output: %s", raw_data[:200])
+    logger.debug("Investigador raw output: %s", raw_data[:300])
 
     filtered_str = raw_data
     try:
@@ -62,17 +62,38 @@ def _auto_capture_lead(user_message: str, data: dict) -> None:
     destination = data.get("destination")
     if not destination:
         return
+
+    nombre = data.get("nombre_cliente") or "Cliente potencial"
+    telefono = data.get("telefono_cliente") or None
+    pasajeros = data.get("pasajeros")
+    tipo_viaje = data.get("tipo_viaje") or None
+    origin = data.get("origin") or None
+    travel_dates = data.get("travel_dates") or None
+    presupuesto_cliente = data.get("presupuesto_cliente")
+
+    total_usd = presupuesto_cliente or _parse_price(data.get("estimated_price"))
+
+    resumen = f"Interés en {destination}"
+    if tipo_viaje:
+        resumen += f" ({tipo_viaje})"
+    if pasajeros:
+        resumen += f" — {pasajeros} pax"
+    if travel_dates:
+        resumen += f" — {travel_dates}"
+
     try:
-        total_usd = _parse_price(data.get("estimated_price"))
-        db.lead_create(
+        lead = db.lead_create(
             destino=destination,
-            nombre="Cliente potencial",
-            origen=data.get("origin") or None,
-            fecha_inicio=data.get("travel_dates") or None,
-            resumen=f"Interés en {destination}. Consulta: {user_message[:120]}",
+            nombre=nombre,
+            telefono=telefono,
+            origen=origin,
+            fecha_inicio=travel_dates,
+            pasajeros=pasajeros,
+            tipo_viaje=tipo_viaje,
+            resumen=resumen,
             total_usd=total_usd,
         )
-        logger.info("Lead auto-captured: destino=%s", destination)
+        logger.info("Lead auto-captured: id=%s destino=%s nombre=%s", lead["id"], destination, nombre)
     except Exception as exc:
         logger.warning("Auto lead capture failed: %s", exc)
 
@@ -80,7 +101,7 @@ def _auto_capture_lead(user_message: str, data: dict) -> None:
 def _parse_price(raw: object) -> float | None:
     if raw is None:
         return None
-    numbers = re.findall(r"[\d]+(?:[.,]\d+)?", str(raw).replace(",", ""))
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(raw).replace(",", ""))
     if numbers:
         try:
             return float(numbers[0])
