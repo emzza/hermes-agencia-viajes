@@ -5,6 +5,7 @@ Returns empty data until the WhatsApp / database integration is built.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import db
 from agents import pipeline
 
 router = APIRouter()
@@ -101,16 +102,30 @@ def update_task(task_id: str):
 
 @router.get("/leads")
 def list_leads(status: str | None = None, limit: int = 200):
-    return []
+    return db.lead_list(status=status, limit=limit)
+
+
+class LeadPatch(BaseModel):
+    status: str | None = None
+    nombre: str | None = None
+    telefono: str | None = None
+    destino: str | None = None
+    resumen: str | None = None
+    total_usd: float | None = None
 
 
 @router.patch("/leads/{lead_id}")
-def update_lead(lead_id: str):
-    return {"ok": True}
+def update_lead(lead_id: str, body: LeadPatch):
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    lead = db.lead_update(lead_id, **updates)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return lead
 
 
 @router.delete("/leads/{lead_id}")
 def delete_lead(lead_id: str):
+    db.lead_delete(lead_id)
     return {"ok": True}
 
 

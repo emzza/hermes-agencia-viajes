@@ -6,12 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from agents import hermes_mcp
+import db
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    db.init_db()
+    logger.info("Database initialized")
+
     if settings.hermes_enabled:
         try:
             await hermes_mcp.connect()
