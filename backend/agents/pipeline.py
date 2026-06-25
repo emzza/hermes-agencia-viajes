@@ -5,13 +5,11 @@ import re
 
 import db
 from config import settings
-from agents import hermes_mcp, security_filter
-from agents import investigador as investigador_factory
 from agents.atencion_cliente import atencion_cliente
 
 logger = logging.getLogger(__name__)
 
-_PIPELINE_TIMEOUT = 120
+_PIPELINE_TIMEOUT = 55  # under Traefik's 60s default
 
 # In-memory conversation history: session_id → [(user_msg, assistant_msg), ...]
 _sessions: dict[str, list[tuple[str, str]]] = {}
@@ -31,32 +29,15 @@ async def run(user_message: str, session_id: str | None = None) -> str:
 
 
 async def _run(user_message: str, session_id: str) -> str:
-    logger.info("Pipeline step 1 — investigador [session=%s]", session_id)
-    inv = investigador_factory.create(hermes_mcp.get())
-    research_response = await inv.arun(user_message)
-    raw_data = research_response.content or ""
-    logger.info("Investigador done. output[:100]: %s", raw_data[:100])
-
-    filtered_str = raw_data
-    try:
-        parsed = json.loads(raw_data)
-        filtered_data = security_filter.apply(parsed)
-        filtered_str = json.dumps(filtered_data, ensure_ascii=False)
-        _auto_capture_lead(user_message, filtered_data)
-    except (json.JSONDecodeError, Exception) as exc:
-        logger.debug("Could not parse investigador JSON: %s", exc)
-        filtered_str = security_filter.apply(raw_data)
-
     history = _sessions.get(session_id, [])
-    redactor_prompt = _build_prompt(user_message, filtered_str, history)
+    prompt = _build_prompt(user_message, history)
 
-    logger.info("Pipeline step 2 — atencion_cliente [session=%s, history=%d]", session_id, len(history))
-    draft_response = await atencion_cliente.arun(redactor_prompt)
-    draft = draft_response.content or ""
-    logger.info("Redactor done. draft[:100]: %s", draft[:100])
+    logger.info("Pipeline — atencion_cliente [session=%s history=%d]", session_id, len(history))
+    response = await atencion_cliente.arun(prompt)
+    draft = response.content or ""
+    logger.info("Draft[:100]: %s", draft[:100])
 
     if not draft:
-        logger.error("Empty draft from atencion_cliente")
         return settings.fallback_message
 
     # Save exchange to session history
@@ -65,10 +46,13 @@ async def _run(user_message: str, session_id: str) -> str:
     if len(turns) > _MAX_HISTORY_TURNS:
         turns.pop(0)
 
+    # Best-effort lead capture from the conversation
+    _try_capture_lead(user_message, history, draft)
+
     return draft
 
 
-def _build_prompt(user_message: str, filtered_str: str, history: list[tuple[str, str]]) -> str:
+def _build_prompt(user_message: str, history: list[tuple[str, str]]) -> str:
     parts: list[str] = []
 
     if history:
@@ -79,58 +63,66 @@ def _build_prompt(user_message: str, filtered_str: str, history: list[tuple[str,
         parts.append("=== Fin del historial ===\n")
 
     parts.append(f"Nuevo mensaje del cliente: {user_message}")
-    parts.append(f"Información disponible: {filtered_str}")
-
     return "\n".join(parts)
 
 
-def _auto_capture_lead(user_message: str, data: dict) -> None:
-    destination = data.get("destination")
-    if not destination:
-        return
-
-    nombre = data.get("nombre_cliente") or "Cliente potencial"
-    telefono = data.get("telefono_cliente") or None
-    pasajeros = data.get("pasajeros")
-    tipo_viaje = data.get("tipo_viaje") or None
-    origin = data.get("origin") or None
-    travel_dates = data.get("travel_dates") or None
-    presupuesto_cliente = data.get("presupuesto_cliente")
-
-    total_usd = presupuesto_cliente or _parse_price(data.get("estimated_price"))
-
-    resumen = f"Interés en {destination}"
-    if tipo_viaje:
-        resumen += f" ({tipo_viaje})"
-    if pasajeros:
-        resumen += f" — {pasajeros} pax"
-    if travel_dates:
-        resumen += f" — {travel_dates}"
-
+def _try_capture_lead(user_message: str, history: list[tuple[str, str]], draft: str) -> None:
+    """Extract destination from conversation and save lead. Best-effort, never throws."""
     try:
-        lead = db.lead_create(
+        full_convo = " ".join(
+            f"{u} {a}" for u, a in history
+        ) + f" {user_message}"
+
+        destination = _extract_destination(full_convo)
+        if not destination:
+            return
+
+        pasajeros = _extract_number(r"(\d+)\s*(?:persona|pasajero|pax|viajero)", full_convo)
+        nombre = _extract_nombre(full_convo)
+
+        db.lead_create(
             destino=destination,
-            nombre=nombre,
-            telefono=telefono,
-            origen=origin,
-            fecha_inicio=travel_dates,
+            nombre=nombre or "Cliente potencial",
             pasajeros=pasajeros,
-            tipo_viaje=tipo_viaje,
-            resumen=resumen,
-            total_usd=total_usd,
+            resumen=f"Interés en {destination}. Consulta: {user_message[:100]}",
         )
-        logger.info("Lead auto-captured: id=%s destino=%s nombre=%s", lead["id"], destination, nombre)
+        logger.info("Lead captured: destino=%s", destination)
     except Exception as exc:
-        logger.warning("Auto lead capture failed: %s", exc)
+        logger.debug("Lead capture skipped: %s", exc)
 
 
-def _parse_price(raw: object) -> float | None:
-    if raw is None:
-        return None
-    numbers = re.findall(r"\d+(?:\.\d+)?", str(raw).replace(",", ""))
-    if numbers:
+# ── Simple extractors (no LLM) ────────────────────────────────────────────────
+
+_DESTINOS = re.compile(
+    r"\b(miami|cancún|cancun|madrid|barcelona|roma|paris|paris|londres|london|"
+    r"new york|nueva york|dubai|punta cana|riviera maya|caribe|"
+    r"mar del plata|bariloche|mendoza|córdoba|cordoba|buenos aires|"
+    r"río de janeiro|rio de janeiro|san pablo|são paulo|brasil|brazil|"
+    r"europa|usa|estados unidos|mexico|méxico|chile|uruguay|perú|peru|"
+    r"colombia|costa rica|panama|panamá|cuba|caribe)\b",
+    re.IGNORECASE,
+)
+
+def _extract_destination(text: str) -> str | None:
+    m = _DESTINOS.search(text)
+    return m.group(0).title() if m else None
+
+
+def _extract_number(pattern: str, text: str) -> int | None:
+    m = re.search(pattern, text, re.IGNORECASE)
+    if m:
         try:
-            return float(numbers[0])
+            return int(m.group(1))
         except ValueError:
             pass
+    return None
+
+
+def _extract_nombre(text: str) -> str | None:
+    m = re.search(r"\bme llamo\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)", text, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m = re.search(r"\bsoy\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)(?!\s+de\b)", text, re.IGNORECASE)
+    if m:
+        return m.group(1)
     return None
