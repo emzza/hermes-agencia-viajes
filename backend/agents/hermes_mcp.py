@@ -12,8 +12,9 @@ async def connect() -> None:
     global _tools
     url = f"{settings.hermes_url}/sse"
     logger.info("Connecting to Hermes MCP server at %s", url)
-    _tools = MCPTools(transport="sse", url=url)
-    await _tools.connect()
+    t = MCPTools(transport="sse", url=url)
+    await t.connect()
+    _tools = t  # only assigned after successful connect
     logger.info("Hermes MCP connected")
 
 
