@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@theme inline {
+  --color-green-primary: #16a34a;
+  --color-green-light: #f0fdf4;
+  --color-green-wa: #25D366;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+* {
+  box-sizing: border-box;
+}
