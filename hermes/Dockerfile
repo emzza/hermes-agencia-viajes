@@ -1,8 +1,8 @@
-FROM node:20-slim
+FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y python3 python3-pip git curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git curl nodejs npm && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install uv --break-system-packages
+RUN pip install uv
 
 RUN mkdir -p /root/.hermes && \
     git clone https://github.com/NousResearch/hermes-agent /root/.hermes/hermes-agent && \
