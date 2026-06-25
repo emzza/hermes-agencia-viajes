@@ -5,7 +5,7 @@ import { AlertTriangle, Clock, Send, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Alert } from '@/lib/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = ''
 
 const ALERT_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   follow_up_overdue: { label: 'Seguimiento vencido', icon: '⏰', color: 'border-l-orange-400 bg-orange-50' },

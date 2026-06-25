@@ -5,7 +5,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import { logTypeLabel } from '@/lib/utils'
 import type { LogEvent } from '@/lib/types'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API = ''
 
 const ORIGIN_FILTERS = [
   { label: 'Todos', value: 'all' },

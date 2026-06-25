@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Topbar } from '@/components/layout/Topbar'
 import type { Lead, LeadStatus } from '@/lib/types'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API = ''
 
 const STATUS_FILTERS = [
   { label: 'Todos', value: 'all' },

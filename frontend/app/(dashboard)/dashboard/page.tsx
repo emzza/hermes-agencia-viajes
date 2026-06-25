@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { AlertsWidget } from '@/components/dashboard/AlertsWidget'
 import { DailyReportWidget } from '@/components/dashboard/DailyReportWidget'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API = process.env.BACKEND_URL || 'http://backend:8000'
 
 async function getStats() {
   try {

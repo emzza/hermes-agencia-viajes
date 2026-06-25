@@ -5,7 +5,7 @@ import { Send, BrainCircuit, Loader2, Bot } from 'lucide-react'
 import { Topbar } from '@/components/layout/Topbar'
 import { cn } from '@/lib/utils'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = ''
 
 interface ChatMessage {
   role: 'user' | 'assistant'

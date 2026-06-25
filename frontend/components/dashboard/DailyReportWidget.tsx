@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BrainCircuit, Loader2, RefreshCw } from 'lucide-react'
 import type { DailyReport } from '@/lib/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = ''
 
 interface Props {
   report: DailyReport | null

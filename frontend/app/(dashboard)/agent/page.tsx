@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Topbar } from '@/components/layout/Topbar'
 import { Send, Bot, User, Loader2, WifiOff, Plus, Trash2, MessageSquare } from 'lucide-react'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API = ''
 const CHATS_KEY = 'hermes_agent_chats_v1'
 
 interface StoredMessage {
