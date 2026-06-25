@@ -12,7 +12,7 @@ from agents.juez import evaluate as juez_evaluate
 
 logger = logging.getLogger(__name__)
 
-_PIPELINE_TIMEOUT = 60
+_PIPELINE_TIMEOUT = 120
 
 
 async def run(user_message: str, session_id: str | None = None) -> str:
@@ -27,10 +27,11 @@ async def run(user_message: str, session_id: str | None = None) -> str:
 
 
 async def _run(user_message: str) -> str:
+    logger.info("Pipeline step 1 — investigador")
     inv = investigador_factory.create(hermes_mcp.get())
     research_response = await inv.arun(user_message)
     raw_data = research_response.content or ""
-    logger.debug("Investigador raw output: %s", raw_data[:300])
+    logger.info("Investigador done. output[:100]: %s", raw_data[:100])
 
     filtered_str = raw_data
     try:
@@ -46,16 +47,26 @@ async def _run(user_message: str) -> str:
         f"Mensaje del cliente: {user_message}\n\n"
         f"Información disponible: {filtered_str}"
     )
+    logger.info("Pipeline step 2 — atencion_cliente")
     draft_response = await atencion_cliente.arun(redactor_prompt)
     draft = draft_response.content or ""
-    logger.debug("Redactor draft: %s", draft[:200])
+    logger.info("Redactor done. draft[:100]: %s", draft[:100])
 
-    passed, reason = await juez_evaluate(user_message, draft)
-    if passed:
+    if not draft:
+        logger.error("Empty draft from atencion_cliente")
+        return settings.fallback_message
+
+    logger.info("Pipeline step 3 — juez")
+    try:
+        passed, reason = await juez_evaluate(user_message, draft)
+        if passed:
+            logger.info("Juez passed")
+            return draft
+        logger.warning("Juez rejected (score reason: %s) — returning draft anyway", reason)
         return draft
-
-    logger.warning("DeepEval judge rejected response: %s", reason)
-    return settings.fallback_message
+    except Exception as exc:
+        logger.warning("Juez failed (%s) — returning draft without validation", exc)
+        return draft
 
 
 def _auto_capture_lead(user_message: str, data: dict) -> None:

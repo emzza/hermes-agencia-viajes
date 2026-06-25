@@ -4,9 +4,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     openrouter_api_key: str = ""
 
-    investigador_model: str = "nousresearch/hermes-3-llama-3.1-405b"
+    investigador_model: str = "openai/gpt-4o-mini"
     redactor_model: str = "openai/gpt-4o-mini"
-    juez_model: str = "openai/gpt-4o"
+    juez_model: str = "openai/gpt-4o-mini"
 
     hermes_enabled: bool = True
     hermes_url: str = "http://hermes:8765"
