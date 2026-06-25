@@ -10,10 +10,11 @@ _tools: MCPTools | None = None
 
 async def connect() -> None:
     global _tools
-    logger.info("Connecting to Hermes Agent MCP server...")
-    _tools = MCPTools(command=settings.hermes_command)
+    url = f"{settings.hermes_url}/sse"
+    logger.info("Connecting to Hermes MCP server at %s", url)
+    _tools = MCPTools(transport="sse", url=url)
     await _tools.connect()
-    logger.info("Hermes MCP connected — command: %s", settings.hermes_command)
+    logger.info("Hermes MCP connected")
 
 
 async def disconnect() -> None:

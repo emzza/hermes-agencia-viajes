@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     juez_model: str = "openai/gpt-4o"
 
     hermes_enabled: bool = True
-    hermes_command: str = r"C:\Users\gasto\AppData\Local\hermes\hermes-agent\venv\Scripts\hermes.exe mcp serve --accept-hooks"
+    hermes_url: str = "http://hermes:8765"
 
     fallback_message: str = (
         "Estamos verificando la información para brindarte una respuesta precisa. "
