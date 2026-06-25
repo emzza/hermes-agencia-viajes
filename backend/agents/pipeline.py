@@ -8,7 +8,6 @@ from config import settings
 from agents import hermes_mcp, security_filter
 from agents import investigador as investigador_factory
 from agents.atencion_cliente import atencion_cliente
-from agents.juez import evaluate as juez_evaluate
 
 logger = logging.getLogger(__name__)
 
@@ -56,17 +55,7 @@ async def _run(user_message: str) -> str:
         logger.error("Empty draft from atencion_cliente")
         return settings.fallback_message
 
-    logger.info("Pipeline step 3 — juez")
-    try:
-        passed, reason = await juez_evaluate(user_message, draft)
-        if passed:
-            logger.info("Juez passed")
-            return draft
-        logger.warning("Juez rejected (score reason: %s) — returning draft anyway", reason)
-        return draft
-    except Exception as exc:
-        logger.warning("Juez failed (%s) — returning draft without validation", exc)
-        return draft
+    return draft
 
 
 def _auto_capture_lead(user_message: str, data: dict) -> None:
